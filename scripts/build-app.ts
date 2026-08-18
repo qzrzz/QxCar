@@ -10,7 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import chalk from "chalk";
 
 export type BuildConfiguration = "debug" | "release";
@@ -36,6 +36,13 @@ const ROOT_DIR = join(import.meta.dir, "..");
 const TARGET_NAME = "QxCar";
 const RESOURCE_BUNDLE_NAME = TARGET_NAME + "_" + TARGET_NAME + ".bundle";
 const ICON_SOURCE_PNG = join(ROOT_DIR, "icons/QxCar-1.png");
+/** 与 Qjiao / QCopy / QLaunch 共用的 Sparkle EdDSA 公钥；发布时 SPARKLE_ACCOUNT 默认 qjiao。 */
+export const SPARKLE_PUBLIC_ED_KEY =
+  Bun.env.SPARKLE_PUBLIC_ED_KEY?.trim() || "rIu1scWZ0i+1pucGPQPhBmKpHUNjrJuiU2jDHHRAA20=";
+export const SPARKLE_FEED_URL =
+  Bun.env.SPARKLE_FEED_URL?.trim() ||
+  "https://download.qzrzz.com/QxCar/appcast.xml";
+const SPARKLE_RPATH = "@executable_path/../Frameworks";
 
 export async function runCommand(command: string[], cwd = ROOT_DIR): Promise<void> {
   const child = Bun.spawn(command, {
@@ -140,6 +147,14 @@ function generateInfoPlist(options: {
   <true/>
   <key>NSHumanReadableCopyright</key>
   <string>Copyright © 2026 Qzrzz. All rights reserved.</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>SUFeedURL</key>
+  <string>${SPARKLE_FEED_URL}</string>
+  <key>SUPublicEDKey</key>
+  <string>${SPARKLE_PUBLIC_ED_KEY}</string>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>
@@ -156,9 +171,120 @@ function generateInfoPlist(options: {
       </array>
     </dict>
   </array>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>zh-Hans</string>
+    <string>en</string>
+    <string>ja</string>
+    <string>ko</string>
+    <string>vi</string>
+    <string>ru</string>
+    <string>fr</string>
+    <string>de</string>
+    <string>es</string>
+  </array>
 </dict>
 </plist>
 `;
+}
+
+function makeDebugEntitlements(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.get-task-allow</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>
+`;
+}
+
+function findSparkleFramework(scratchPath: string): string {
+  const roots = [
+    join(scratchPath, "artifacts"),
+    join(ROOT_DIR, ".build/artifacts"),
+  ];
+  const hits: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 8 || !existsSync(dir)) return;
+    let entries: ReturnType<typeof readdirSync>;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "Sparkle.framework") {
+          const binary = join(full, "Sparkle");
+          if (existsSync(binary) || existsSync(join(full, "Versions/Current/Sparkle"))) {
+            hits.push(full);
+          }
+          continue;
+        }
+        if (entry.name === "dSYMs" || entry.name === ".git") continue;
+        walk(full, depth + 1);
+      }
+    }
+  };
+  for (const root of roots) walk(root, 0);
+  const preferred = hits.find((path) => path.includes("macos-arm64") || path.includes("macos-"));
+  const found = preferred ?? hits[0];
+  if (!found) {
+    throw new Error(
+      "未找到 Sparkle.framework。请确认 Package.swift 已声明 Sparkle，并先完成 swift build。",
+    );
+  }
+  return found;
+}
+
+function embedSparkleFramework(appPath: string, scratchPath: string): string {
+  const source = findSparkleFramework(scratchPath);
+  const frameworksPath = join(appPath, "Contents/Frameworks");
+  const destination = join(frameworksPath, "Sparkle.framework");
+  mkdirSync(frameworksPath, { recursive: true });
+  rmSync(destination, { recursive: true, force: true });
+  cpSync(source, destination, { recursive: true });
+  return destination;
+}
+
+async function ensureExecutableRpath(executablePath: string, rpath: string): Promise<void> {
+  const loadCommands = await captureCommand(["otool", "-l", executablePath]);
+  if (loadCommands.includes(rpath)) return;
+  try {
+    await runCommand(["install_name_tool", "-add_rpath", rpath, executablePath]);
+  } catch {
+    await runCommand(["codesign", "--remove-signature", executablePath]);
+    await runCommand(["install_name_tool", "-add_rpath", rpath, executablePath]);
+  }
+}
+
+async function signApp(
+  appPath: string,
+  identity: string,
+  options: { allowDebugger?: boolean } = {},
+): Promise<void> {
+  const args = ["codesign", "--force", "--deep"];
+  if (identity !== "-") {
+    args.push("--options", "runtime", "--timestamp");
+  }
+
+  let entitlementsPath: string | null = null;
+  if (options.allowDebugger) {
+    entitlementsPath = join(ROOT_DIR, "build/debug-entitlements.plist");
+    mkdirSync(dirname(entitlementsPath), { recursive: true });
+    writeFileSync(entitlementsPath, makeDebugEntitlements(), "utf8");
+    args.push("--entitlements", entitlementsPath);
+  }
+
+  args.push("--sign", identity, appPath);
+  await runCommand(args);
 }
 
 export async function buildApp(options: AppBuildOptions): Promise<AppBuildResult> {
@@ -237,16 +363,14 @@ export async function buildApp(options: AppBuildOptions): Promise<AppBuildResult
   });
   writeFileSync(join(contentsPath, "Info.plist"), plistContent, "utf8");
 
-  // 4. 代码签名
+  const sparklePath = embedSparkleFramework(appPath, join(ROOT_DIR, ".build"));
+  await ensureExecutableRpath(appExecutablePath, SPARKLE_RPATH);
+  console.log(chalk.bold.green("✔ 已嵌入 Sparkle: ") + chalk.gray(relative(ROOT_DIR, sparklePath)));
+
   console.log(chalk.bold.cyan("▶ 正在进行代码签名..."));
-  await runCommand([
-    "codesign",
-    "--force",
-    "--deep",
-    "--sign",
-    signIdentity,
-    appPath,
-  ]);
+  await signApp(appPath, signIdentity, {
+    allowDebugger: configuration === "debug",
+  });
 
   console.log(
     chalk.bold.green("✔ 构建成功: ") +

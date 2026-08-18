@@ -7,3 +7,7 @@
 /*.icon
 /outputDir/
 /QxCarOutput/
+# 本机 Sparkle 历史（ZIP / appcast / manifest），勿提交
+/release/
+.qrls-state.json
+.env*

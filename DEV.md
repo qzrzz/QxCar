@@ -14,11 +14,26 @@ QxCar 是一个面向 macOS 的现代化资源导出与 Liquid Glass（液态玻
 ## 常用脚本命令
 ```bash
 bun run dev          # 启动开发调试模式（构建 Debug 应用并立即运行）
-bun run build        # 构建生产级应用包 build/Release/QxCar.app 并打包
-bun run release      # 构建并发布压缩包
-bun run clean        # 清理 build/ 与 .build/ 构建缓存
-bun run test         # 运行 Swift 单元测试
+bun run build        # 本地 Release：签名、打 DMG / ZIP，不调用 QRls
+bun run release      # 公证后经 QRls 发布到 R2（默认镜像 GitHub）
+bun run clean        # 清理 build/ 与 .build/ 构建缓存（不删 release/）
+bun run test         # 运行 Swift 单元测试与发布脚本测试
 ```
+
+## 发布
+
+流程对齐 QCopy：Developer ID 签名 → notarize + staple → `QxCar-<version>.dmg` → Sparkle ZIP / appcast（最多 3 个 delta）→ QRls 主发 R2，默认镜像 GitHub。
+
+```bash
+bun run build                 # 本地构建，不发布
+bun run release               # 正式发布当前 package.json 版本
+bun run release -- 1.0.1      # 指定营销版本并递增 buildNumber
+PUBLISH_GITHUB=0 bun run release   # 只发 R2
+```
+
+要求：Developer ID Application、`QxCar-notary` 或 `.env` 中的 Apple 凭据、QRls 凭据、钥匙串中的 Sparkle 私钥（默认账户 `qjiao`，与 QCopy / QLaunch 共用公钥）。
+
+应用检查更新的 feed：`https://download.qzrzz.com/QxCar/appcast.xml`。菜单：QxCar → 检查更新…
 
 ## 核心模块说明
 1. `Sources/QxCarCoreBridge`:
@@ -31,3 +46,4 @@ bun run test         # 运行 Swift 单元测试
    - `ExportManager`：全流程异步任务调度与进度事件流分发。
 3. `Sources/QxCar`:
    - SwiftUI 应用界面，采用 macOS 27 液态玻璃设计（`.liquidGlassCard()`、交互高亮反馈、状态与日志控制台）。
+   - `Updater.swift`：Sparkle 更新管理器；Release 启动后静默检查，Debug 不自动启动。菜单「检查更新…」。
