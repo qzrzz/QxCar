@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import QxCarCore
 
 enum QxCarWindowMetrics {
     static let width: CGFloat = 440
@@ -10,16 +11,49 @@ enum QxCarWindowMetrics {
 @main
 struct QxCarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var updater = Updater.shared
+    @StateObject private var languageManager = LanguageManager.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(languageManager)
+                .environment(\.locale, languageManager.currentLanguage.locale)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultSize(width: QxCarWindowMetrics.width, height: QxCarWindowMetrics.height)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updater, title: languageManager.string(.menuCheckForUpdates))
+            }
+            CommandGroup(after: .appSettings) {
+                Menu(languageManager.string(.menuLanguage)) {
+                    Picker(languageManager.string(.menuLanguage), selection: $languageManager.selectedLanguage) {
+                        Text(L10n.menuItemTitle(for: .system, currentUiLang: languageManager.currentLanguage))
+                            .tag(AppLanguage.system)
+                        Divider()
+                        ForEach(AppLanguage.allConcreteCases, id: \.self) { lang in
+                            Text(lang.nativeDisplayName)
+                                .tag(lang)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                }
+            }
+            CommandMenu(languageManager.string(.menuLanguage)) {
+                Picker(languageManager.string(.menuLanguage), selection: $languageManager.selectedLanguage) {
+                    Text(L10n.menuItemTitle(for: .system, currentUiLang: languageManager.currentLanguage))
+                        .tag(AppLanguage.system)
+                    Divider()
+                    ForEach(AppLanguage.allConcreteCases, id: \.self) { lang in
+                        Text(lang.nativeDisplayName)
+                            .tag(lang)
+                    }
+                }
+                .pickerStyle(.inline)
+            }
         }
     }
 }

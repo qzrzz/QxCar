@@ -11,6 +11,9 @@ let package = Package(
         .executable(name: "QxCar", targets: ["QxCar"]),
         .library(name: "QxCarCore", targets: ["QxCarCore"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")
+    ],
     targets: [
         .target(
             name: "QxCarCoreBridge",
@@ -24,7 +27,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "QxCar",
-            dependencies: ["QxCarCore"],
+            dependencies: [
+                "QxCarCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/QxCar",
             swiftSettings: [
                 .swiftLanguageMode(.v5)

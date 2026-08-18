@@ -4,6 +4,7 @@ import QxCarCore
 /// 遵循 Apple HIG 规范与 macOS 27 Liquid Glass 的极简主窗口
 public struct ContentView: View {
     @StateObject private var viewModel = QxCarViewModel()
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     public init() {}
 
@@ -73,7 +74,7 @@ public struct ContentView: View {
 
             Spacer()
 
-            Button("更改...") {
+            Button(languageManager.string(.btnChange)) {
                 viewModel.selectOutputFolder()
             }
             .buttonStyle(LiquidGlassButtonStyle(isPrimary: false, cornerRadius: 8))
@@ -91,7 +92,7 @@ public struct ContentView: View {
             .controlSize(.small)
             .focusEffectDisabled()
             .focusable(false)
-            .help("在访达中打开此目录")
+            .help(languageManager.string(.tipOpenInFinder))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -107,25 +108,25 @@ public struct ContentView: View {
                 if viewModel.isExporting {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在导出...")
+                    Text(languageManager.string(.statusExporting))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 } else if viewModel.lastResult != nil {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                         .font(.system(size: 13))
-                    Text("导出完成")
+                    Text(languageManager.string(.statusExportCompleted))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.green)
                 } else if viewModel.notFoundInfo != nil {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
                         .font(.system(size: 13))
-                    Text("未找到资源")
+                    Text(languageManager.string(.statusNoAssetsFound))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.orange)
                 } else if viewModel.targetInfo != nil {
-                    Text("就绪")
+                    Text(languageManager.string(.statusReady))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
@@ -135,7 +136,7 @@ public struct ContentView: View {
 
             // 动作按钮（macOS 27 10pt 连续平滑圆角）
             if let result = viewModel.lastResult {
-                Button("在访达中显示") {
+                Button(languageManager.string(.btnShowInFinder)) {
                     viewModel.openOutputDirInFinder()
                 }
                 .buttonStyle(LiquidGlassButtonStyle(isPrimary: false, cornerRadius: 10))
@@ -144,7 +145,7 @@ public struct ContentView: View {
                 .focusable(false)
 
                 if result.iconPath != nil {
-                    Button("打开 .icon") {
+                    Button(languageManager.string(.btnOpenIcon)) {
                         viewModel.openIconInIconComposer()
                     }
                     .buttonStyle(LiquidGlassButtonStyle(isPrimary: true, cornerRadius: 10))
@@ -153,7 +154,7 @@ public struct ContentView: View {
                     .focusable(false)
                 }
             } else {
-                Button("导出资源") {
+                Button(languageManager.string(.btnExportAssets)) {
                     viewModel.startExport()
                 }
                 .buttonStyle(LiquidGlassButtonStyle(isPrimary: true, cornerRadius: 12, size: .large))

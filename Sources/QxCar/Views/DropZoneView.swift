@@ -6,6 +6,7 @@ import QxCarCore
 /// 最小高度 96pt，在窗口内吃掉剩余垂直空间；各状态共用同一高度，避免切换抖动
 public struct DropZoneView: View {
     @ObservedObject var viewModel: QxCarViewModel
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     public static let minHeight: CGFloat = 96
 
@@ -44,7 +45,7 @@ public struct DropZoneView: View {
                             .buttonStyle(.plain)
                             .focusEffectDisabled()
                             .focusable(false)
-                            .help("移除并重新选择")
+                            .help(languageManager.string(.tipRemoveAndReselect))
                         }
 
                         HStack(spacing: 6) {
@@ -108,7 +109,7 @@ public struct DropZoneView: View {
                             .buttonStyle(.plain)
                             .focusEffectDisabled()
                             .focusable(false)
-                            .help("清除提示")
+                            .help(languageManager.string(.tipClearMessage))
                         }
 
                         HStack(spacing: 4) {
@@ -137,11 +138,11 @@ public struct DropZoneView: View {
                             .foregroundColor(viewModel.isDragOver ? .accentColor : .secondary)
 
                         VStack(spacing: 3) {
-                            Text("拖入 Assets.car 或 .app 文件夹")
+                            Text(languageManager.string(.dropZonePrompt))
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.primary)
 
-                            Text("或点击选取文件")
+                            Text(languageManager.string(.dropZoneSubPrompt))
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                         }
@@ -186,7 +187,7 @@ public struct DropZoneView: View {
             UTType.applicationBundle,
             UTType.folder
         ]
-        panel.prompt = "选取"
+        panel.prompt = languageManager.string(.chooseFilePrompt)
 
         if panel.runModal() == .OK, let url = panel.url {
             viewModel.handleDroppedPaths([url.path])

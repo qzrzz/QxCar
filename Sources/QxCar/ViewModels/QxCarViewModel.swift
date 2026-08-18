@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import QxCarCore
 
 /// 日志条目模型
@@ -21,7 +22,20 @@ public struct NotFoundTargetInfo: Sendable {
     public let path: String
     public let displayName: String
     public let isAppBundle: Bool
-    public let reason: String
+
+    /// 动态返回当前生效语言下的未找到原因说明
+    @MainActor
+    public var reason: String {
+        isAppBundle
+            ? LanguageManager.shared.string(.errAppBundleNoCar)
+            : LanguageManager.shared.string(.errInvalidCarPath)
+    }
+
+    public init(path: String, displayName: String, isAppBundle: Bool) {
+        self.path = path
+        self.displayName = displayName
+        self.isAppBundle = isAppBundle
+    }
 }
 
 @MainActor
@@ -36,18 +50,29 @@ public final class QxCarViewModel: ObservableObject {
 
     @Published public var isExporting: Bool = false
     @Published public var progress: Double = 0.0
-    @Published public var statusMessage: String = "请拖入 Assets.car 文件或 .app 应用程序包"
+    @Published public var statusMessage: String
     @Published public var logs: [LogEntry] = []
     @Published public var isDragOver: Bool = false
     @Published public var lastResult: (outputDir: String, assetCount: Int, iconPath: String?)?
 
     private let discoveryService = CarDiscoveryService.shared
     private let exportManager = ExportManager.shared
+    private var languageCancellable: AnyCancellable?
 
     public init() {
         // 默认输出目录设为用户桌面下的 QxCarOutput
         let desktop = NSSearchPathForDirectoriesInDomains(.desktopDirectory, .userDomainMask, true).first ?? "~"
         self.outputDirectory = (desktop as NSString).appendingPathComponent("QxCarOutput")
+        self.statusMessage = LanguageManager.shared.string(.msgInitialPrompt)
+
+        // 监听语言变化，实时刷新状态文本
+        self.languageCancellable = LanguageManager.shared.$currentLanguage
+            .dropFirst()
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.refreshLocalizedStatus()
+                }
+            }
     }
 
     /**
@@ -62,7 +87,7 @@ public final class QxCarViewModel: ObservableObject {
             self.notFoundInfo = nil
             self.selectedIconStack = info.primaryIconStack ?? "AppIcon"
             self.iconOutputName = "\(info.displayName).icon"
-            self.statusMessage = "已识别: \(info.displayName) (\(info.fileSizeString))"
+            self.statusMessage = LanguageManager.shared.format(.msgIdentifiedFormat, info.displayName, info.fileSizeString)
             self.lastResult = nil
             appendLog(.success, "成功定位 Assets.car: \(info.carPath)")
             if !info.iconStacks.isEmpty {
@@ -78,10 +103,9 @@ public final class QxCarViewModel: ObservableObject {
             self.notFoundInfo = NotFoundTargetInfo(
                 path: cleanPath,
                 displayName: displayName,
-                isAppBundle: isApp,
-                reason: isApp ? "该应用包内未找到 Assets.car 资源文件" : "该路径不是有效的 Assets.car 或未包含资源"
+                isAppBundle: isApp
             )
-            self.statusMessage = "未找到 Assets.car 资源文件"
+            self.statusMessage = LanguageManager.shared.string(.msgCarNotFound)
             appendLog(.error, "未找到 Assets.car: \(first)")
         }
     }
@@ -95,7 +119,7 @@ public final class QxCarViewModel: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        panel.prompt = "选择输出目录"
+        panel.prompt = LanguageManager.shared.string(.selectOutputFolderPrompt)
 
         if panel.runModal() == .OK, let url = panel.url {
             self.outputDirectory = url.path
@@ -108,18 +132,18 @@ public final class QxCarViewModel: ObservableObject {
      */
     public func startExport() {
         guard let info = targetInfo else {
-            statusMessage = "请先拖入包含有效 Assets.car 的文件或 .app"
+            statusMessage = LanguageManager.shared.string(.msgPleaseDropFirst)
             return
         }
 
         guard exportAssets || reverseIcon else {
-            statusMessage = "请至少勾选一种导出模式"
+            statusMessage = LanguageManager.shared.string(.msgSelectExportMode)
             return
         }
 
         isExporting = true
         progress = 0.0
-        statusMessage = "正在初始化导出任务..."
+        statusMessage = LanguageManager.shared.string(.msgInitializingExport)
         lastResult = nil
 
         let config = ExportConfiguration(
@@ -141,10 +165,10 @@ public final class QxCarViewModel: ObservableObject {
                 }
                 self.lastResult = res
                 self.isExporting = false
-                self.statusMessage = "✨ 导出全部完成!"
+                self.statusMessage = LanguageManager.shared.string(.msgExportSuccess)
             } catch {
                 self.isExporting = false
-                self.statusMessage = "导出失败: \(error.localizedDescription)"
+                self.statusMessage = LanguageManager.shared.format(.msgExportFailedPrefix, error.localizedDescription)
                 self.appendLog(.error, "导出流程异常: \(error.localizedDescription)")
             }
         }
@@ -199,6 +223,20 @@ public final class QxCarViewModel: ObservableObject {
         notFoundInfo = nil
         lastResult = nil
         progress = 0.0
-        statusMessage = "请拖入 Assets.car 文件或 .app 应用程序包"
+        statusMessage = LanguageManager.shared.string(.msgInitialPrompt)
+    }
+
+    /// 当界面语言发生变更时，自动刷新当前静态状态提示
+    private func refreshLocalizedStatus() {
+        if isExporting { return }
+        if let info = targetInfo {
+            statusMessage = LanguageManager.shared.format(.msgIdentifiedFormat, info.displayName, info.fileSizeString)
+        } else if notFoundInfo != nil {
+            statusMessage = LanguageManager.shared.string(.msgCarNotFound)
+        } else if lastResult != nil {
+            statusMessage = LanguageManager.shared.string(.msgExportSuccess)
+        } else {
+            statusMessage = LanguageManager.shared.string(.msgInitialPrompt)
+        }
     }
 }
