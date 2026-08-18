@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:QxCar}",
+            "name": "Debug QxCar",
+            "target": "QxCar",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug QxCar"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:QxCar}",
+            "name": "Release QxCar",
+            "target": "QxCar",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release QxCar"
+        }
+    ]
+}
