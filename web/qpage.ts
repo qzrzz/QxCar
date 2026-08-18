@@ -9,13 +9,13 @@ import UrlIconFull from "../icons/QxCar-full-256.png";
 
 export const page: IPageMeta = {
   productTitle: "QxCar",
-  productTitleCN: "Car 资源提取",
+  productTitleCN: "macOS 应用图标提取",
   tagline: "提取 macOS 应用 Assets.car 中的图片资源和 .icon 源文件",
-  taglineShort: "提取 Assets.car 资源和图标",
+  taglineShort: "提取 macOS 应用的资源和图标源文件",
   platforms: ["macos"],
   icon: UrlIcon,
   iconFull: UrlIconFull,
-  metaDesc: "UI 设计师必备，提取 macOS 应用 Assets.car 中的图片资源和 .icon ",
+  metaDesc: "UI 设计师必备，提取 macOS 应用 Assets.car 中的图片资源和 .icon 源文件",
   githubRepo: "https://github.com/qzrzz/QxCar",
   onlineUrl: "https://qzrzz.com/QxCar",
   downloadBase: "https://download.qzrzz.com/QxCar",

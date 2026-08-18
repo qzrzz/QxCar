@@ -14,7 +14,6 @@
     "web:build": "qpage ./web ./docs",
     "web:preview": "qpage --preview ./web ./docs",
     "web:i18n:codex": "codex exec 根据./web/translate.md完成翻译任务",
-    "web:i18n:gemini": "agy -p 根据./web/translate.md完成翻译任务",
     "web:publish": "bun run qzrzz-com up ./docs ./QLaunch",
     "web:build-publish": "bun run bun web:build && bun run web:publish"
   },
