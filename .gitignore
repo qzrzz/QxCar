@@ -1,6 +1,8 @@
 .DS_Store
 /.build/
 /build/
+dist
+dist-*
 /node_modules/
 /bun.lockb
 /bun.lock
